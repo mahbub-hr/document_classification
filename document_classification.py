@@ -89,6 +89,12 @@ def hd(vector_train, vector_test):
 
     return count
 
+def euclidean_distance(instance1, instance2):
+    distance = 0.0
+    for i in range(len(instance1)):
+        distance += (instance1[i] - instance2[i])**2
+    return np.sqrt(distance)
+    
 def hamming_prediction(train, test, n_neighbors=1):
     allTestNeighbers=[]
     allPredictedOutputs =[]
