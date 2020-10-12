@@ -4,3 +4,5 @@ Data/*
 *.zip
 *.csv
 *.pdf
+*.png
+*.json
