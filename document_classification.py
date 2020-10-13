@@ -12,6 +12,16 @@ from collections import Counter
 WORD_LIST = 1
 TOPIC = 0
 BIN_VECTOR = 2
+HAMMING = 1
+EUCLIDEAN = 2
+TF_IDF = 3
+
+METHOD = {
+    1: hd,
+    2: euclidean_distance,
+    3: tf_idf,
+}
+
 vocabulary = set()
 topic_list =[]
 document_train = {}
@@ -75,39 +85,37 @@ def generate_binary_vector(voc, documents):
         vector = [0]*len(vocabulary)
         for word,count in word_list:
             if word in vocabulary:
-                vector[voc.index(word)] =1
+                vector[voc.index(word)] = count
         documents[doc][BIN_VECTOR] = vector
     return documents
 
-def hd(vector_train, vector_test):
-    size =len(vector_train)
-    count =0
-    for i in range(0, size):
-        # if vector_train[i] != vector_test[i]:
-        #     count += 1
-        count+=(vector_train[i] ^ vector_test[i])
+def hd(vector_train, vector_test, prevMaxMin = None):
+    return np.sum(np.logical_xor(vector_train, vector_test))
 
-    return count
-
-def euclidean_distance(instance1, instance2):
+def euclidean_distance(instance1, instance2, prevMaxMin = None):
     distance = 0.0
     for i in range(len(instance1)):
         distance += (instance1[i] - instance2[i])**2
+        if prevMaxMin is not None and distance > prevMaxMin:
+            return np.sqrt(distance)
     return np.sqrt(distance)
-    
-def hamming_prediction(train, test, n_neighbors=1):
+
+def tf_idf(prevMaxMin = None):
+    pass
+def hamming_prediction(train, test, n_neighbors=1, method=1):
     allTestNeighbers=[]
     allPredictedOutputs =[]
 
     allDistances = []
     size = len(test)
     half = size/2
-    quarter =  half/2
+    quarter =  int(half/2)
     third_quarter = 3*quarter
+
     i =0 
     for instance in test:
         for vector in train:
-            distance = hd(train[vector][BIN_VECTOR], test[instance][BIN_VECTOR])
+            distance = METHOD[method](train[vector][BIN_VECTOR], test[instance][BIN_VECTOR])
             allDistances.append((vector, train[vector][TOPIC], distance))
 
         allDistances.sort(key=lambda x: x[2])
@@ -144,26 +152,26 @@ def performanceEvaluation(predictedOutput, document_test):
             break
         
         totalCount += 1
-    
-    print("Total Correct Count: ",correctCount," Total Wrong Count: ",totalCount-correctCount," Accuracy: ",(correctCount*100)/(totalCount))
-
+    accuracy = round((correctCount*100)/(totalCount),2)
+    print("Total Correct Count: ",correctCount," Total Wrong Count: ",totalCount-correctCount," Accuracy: ",)
+    return accuracy
 
 # %%
 #Following operation is required if you run this cell for the first time
 #!pip3 install bs4
 from bs4 import BeautifulSoup as bs
 
-train = 500
-validate = 700
-test = 1200
-with open("data/topics.txt") as file:
+train = 250
+validate = 350
+test = 600
+with open("Data/topics.txt") as file:
     for topic in file:
         uniqueOutputCount+=1
 
         topic = topic.rstrip('\n')
         topic_list.append(topic)
         print(topic)
-        with open('data/Training/'+ topic +'.xml','r',encoding='utf-8') as file:
+        with open('Data/Training/'+ topic +'.xml','r',encoding='utf-8') as file:
             content = file.read()
             # topic = "Anime"
             soup = bs(content,features="lxml")
@@ -180,14 +188,19 @@ test_representation = generate_binary_vector(voc, document_test)
 print("============ representation is ready ==========\n")
 
 #%%
-predictedOutput,_ = hamming_prediction(document_train, document_test, 3)
-#%%
-print("len of prediction: ", len(predictedOutput), " Len of test: ", len(document_test))
-
-#%%
-performanceEvaluation(predictedOutput, document_test)
+n_neighbors = [1,3,5]
+best_k = 1
+max_accuracy = 0
+for k in n_neighbors:
+    predictedOutput,_ = hamming_prediction(document_train, document_vaidate, k, HAMMING)
+    accuracy = performanceEvaluation(predictedOutput, document_vaidate)
+    print("k: ", k, " accuracy: ", accuracy)
+    if accuracy > max_accuracy:
+        max_accuracy = accuracy
+        best_k = k
 
 print("============ evaluation done ===========\n\n")
+
 print(len(vocabulary))
 print(len(document_train))
 print(len(document_vaidate))
@@ -195,5 +208,3 @@ print(len(document_test))
 print("finished")
 
 #%%
-hd(train_representation[1][BIN_VECTOR], test_representation[1][BIN_VECTOR])
-# %%
