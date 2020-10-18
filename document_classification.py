@@ -10,17 +10,12 @@ from nltk.stem import PorterStemmer
 from collections import Counter
 
 WORD_LIST = 1
+MAX = 99999999
 TOPIC = 0
 BIN_VECTOR = 2
 HAMMING = 1
 EUCLIDEAN = 2
 TF_IDF = 3
-
-METHOD = {
-    1: hd,
-    2: euclidean_distance,
-    3: tf_idf,
-}
 
 vocabulary = set()
 topic_list =[]
@@ -66,7 +61,7 @@ def text_process(text):
     return list(counts.items())
 
 def preprocess(rows, topic, documents, add_to_voc=False):
-    i = len(documents) + 1
+    i = len(documents)
     for item in rows:
         body = bs(item.get('body'),'lxml').get_text().encode('ascii','ignore').decode('ascii')
         document = {}
@@ -80,29 +75,33 @@ def preprocess(rows, topic, documents, add_to_voc=False):
         i += 1
 
 def generate_binary_vector(voc, documents):
+    vector_representation = []
     for doc in documents:
         word_list =  documents[doc][WORD_LIST]
         vector = [0]*len(vocabulary)
         for word,count in word_list:
             if word in vocabulary:
                 vector[voc.index(word)] = count
-        documents[doc][BIN_VECTOR] = vector
-    return documents
+        vector_representation.append(vector)
+    return np.array(vector_representation)
 
-def hd(vector_train, vector_test, prevMaxMin = None):
-    return np.sum(np.logical_xor(vector_train, vector_test))
+def hd(test, train, prevMaxMin = None):
+    return np.sum(np.logical_xor(test, train))
 
-def euclidean_distance(instance1, instance2, prevMaxMin = None):
-    distance = 0.0
-    for i in range(len(instance1)):
-        distance += (instance1[i] - instance2[i])**2
-        if prevMaxMin is not None and distance > prevMaxMin:
-            return np.sqrt(distance)
-    return np.sqrt(distance)
+def euclidean_distance(test, train, prevMaxMin = None):
+    # distance = 0.0
+    # for i in range(len(instance1)):
+    #     distance += (instance1[i] - instance2[i])**2
+    #     # if prevMaxMin is not None and distance > prevMaxMin:
+    #     #     return np.sqrt(distance)
+    # return np.sqrt(distance)
+    return np.linalg.norm(test-train)
+def cos_similarity(test, train, prevMaxMin = None):
+    pass
 
 def tf_idf(prevMaxMin = None):
     pass
-def hamming_prediction(train, test, n_neighbors=1, method=1):
+def prediction(train, test, n_neighbors=1, method=1):
     allTestNeighbers=[]
     allPredictedOutputs =[]
 
@@ -113,24 +112,30 @@ def hamming_prediction(train, test, n_neighbors=1, method=1):
     third_quarter = 3*quarter
 
     i =0 
-    for instance in test:
-        for vector in train:
-            distance = METHOD[method](train[vector][BIN_VECTOR], test[instance][BIN_VECTOR])
-            allDistances.append((vector, train[vector][TOPIC], distance))
+    prevMaxMin = MAX
+    for r_test in test:
+        j =0
+        for r_train in train:
+            distance = METHOD[method](r_test, r_train) 
+            allDistances.append((j, document_train[j][TOPIC], distance))
+            j+=1
 
         allDistances.sort(key=lambda x: x[2])
-        voteCount = np.zeros(uniqueOutputCount)
-        neighbors = []
+        voteCount = {}
+        # neighbors = []
         for n in range(n_neighbors):
-            neighbors.append(allDistances[n][0])
-            class_label = topic_list.index(allDistances[n][1])
-            voteCount[class_label] += 1
+            # neighbors.append(allDistances[n][0])
+            class_label = allDistances[n][1]
+            if class_label not in voteCount:
+                voteCount[class_label] = 1
+            else: 
+                voteCount[class_label] += 1
         
         #Determine the Majority Voting (Equal weight considered)
-        predictedOutput = np.argmax(voteCount)
+        predictedOutput = max(voteCount, key=voteCount.get)
         
-        allTestNeighbers.append(neighbors)
-        allPredictedOutputs.append(topic_list[predictedOutput])
+        # allTestNeighbers.append(neighbors)
+        allPredictedOutputs.append(predictedOutput)
         i+= 1
         if i == half:
             print("Half of the test is done\n")
@@ -145,7 +150,7 @@ def performanceEvaluation(predictedOutput, document_test):
     
     for doc in document_test:
         try:
-            if predictedOutput[doc-1] == document_test[doc][TOPIC]:
+            if predictedOutput[doc] == document_test[doc][TOPIC]:
                 correctCount += 1
         except:
             print (doc)
@@ -160,10 +165,14 @@ def performanceEvaluation(predictedOutput, document_test):
 #Following operation is required if you run this cell for the first time
 #!pip3 install bs4
 from bs4 import BeautifulSoup as bs
-
-train = 250
-validate = 350
-test = 600
+METHOD = {
+    1: hd,
+    2: euclidean_distance,
+    3: tf_idf,
+}
+train = 100
+validate = 150
+test = 250
 with open("Data/topics.txt") as file:
     for topic in file:
         uniqueOutputCount+=1
@@ -192,7 +201,7 @@ n_neighbors = [1,3,5]
 best_k = 1
 max_accuracy = 0
 for k in n_neighbors:
-    predictedOutput,_ = hamming_prediction(document_train, document_vaidate, k, HAMMING)
+    predictedOutput,_ = prediction(train_representation, validate_representaion, k, HAMMING)
     accuracy = performanceEvaluation(predictedOutput, document_vaidate)
     print("k: ", k, " accuracy: ", accuracy)
     if accuracy > max_accuracy:
@@ -206,5 +215,3 @@ print(len(document_train))
 print(len(document_vaidate))
 print(len(document_test))
 print("finished")
-
-#%%
